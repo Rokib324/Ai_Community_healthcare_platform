@@ -17,10 +17,17 @@ Including another URLconf
 # pyrefly: ignore [missing-import]
 from django.contrib import admin
 # pyrefly: ignore [missing-import]
-from django.urls import path, include
+from django.urls import path, include, re_path
+# pyrefly: ignore [missing-import]
+from django.views.generic import TemplateView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("main/", include("main.urls")),
+    path('api/', include('main_app.api_urls')),
+    # Comment out old templates/HTML urls so requests fall through to React Router
+    # path('', include('main_app.urls')),
+    # path('', include('accounts.urls')),
+    # path('', include('chats.urls')),
+    re_path(r'^.*$', TemplateView.as_view(template_name='index.html'), name='spa_index'),
 ]
 
