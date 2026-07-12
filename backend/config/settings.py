@@ -130,7 +130,6 @@ STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [
     BASE_DIR.parent / 'frontend' / 'dist',
-    BASE_DIR.parent / 'frontend' / 'templates',
 ]
 
 # Default primary key field type
