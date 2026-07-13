@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
-import { User, Clipboard, MessageSquare, AlertCircle, Edit3, X, Calendar, MapPin, Phone, Mail, FileText, CheckCircle2, RefreshCw } from 'lucide-react';
+import { User, Clipboard, MessageSquare, AlertCircle, Edit3, X, Calendar, MapPin, Phone, Mail, FileText, CheckCircle2, RefreshCw, Activity, Bell, BookOpen } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
   const { user, refresh } = useAuth();
@@ -27,6 +27,64 @@ export const PatientDashboard: React.FC = () => {
   const [fbError, setFbError] = useState('');
   const [fbSuccess, setFbSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Today's Medication Reminders State
+  const [todayReminders, setTodayReminders] = useState<any[]>([]);
+  const [remindersLoading, setRemindersLoading] = useState(false);
+
+  const fetchTodayReminders = async () => {
+    try {
+      setRemindersLoading(true);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const response = await api.get(`/reminders/?date=${todayStr}`);
+      if (response.data.reminders) {
+        // Only show active reminders in the daily checklist
+        setTodayReminders(response.data.reminders.filter((rem: any) => rem.active));
+      }
+    } catch (err) {
+      console.error("Error fetching daily reminders:", err);
+    } finally {
+      setRemindersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTodayReminders();
+  }, []);
+
+  const handleToggleLog = async (reminderId: number, timeSlot: string, currentLogged: boolean) => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const status = currentLogged ? 'skipped' : 'taken';
+      
+      const response = await api.post(`/reminders/${reminderId}/log/`, {
+        date: todayStr,
+        time_slot: timeSlot,
+        status: status
+      });
+      if (response.data.success) {
+        // Update local state log mapping
+        setTodayReminders(prev => 
+          prev.map(rem => {
+            if (rem.id === reminderId) {
+              const updatedLogs = [...rem.logs];
+              const logIndex = updatedLogs.findIndex(l => l.taken_time === timeSlot);
+              if (logIndex >= 0) {
+                updatedLogs[logIndex] = { taken_time: timeSlot, status: response.data.status };
+              } else {
+                updatedLogs.push({ taken_time: timeSlot, status: response.data.status });
+              }
+              return { ...rem, logs: updatedLogs };
+            }
+            return rem;
+          })
+        );
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
 
   if (!user) {
     return (
@@ -162,16 +220,83 @@ export const PatientDashboard: React.FC = () => {
                 </Link>
 
                 <Link
-                  to="/consultations"
+                  to="/consult-doctor"
+                  className="p-5 bg-violet-950/20 hover:bg-violet-950/30 border border-violet-900/40 hover:border-violet-800 rounded-2xl flex flex-col justify-between h-36 group transition-all duration-200"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-400 flex items-center justify-center border border-violet-500/20 group-hover:scale-105 transition-transform duration-200">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-white font-semibold group-hover:text-violet-300 transition-colors">Consult Doctor</h5>
+                    <p className="text-slate-400 text-xs mt-1">Chat and start telemedicine calls with verified specialists.</p>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/find-providers"
+                  className="p-5 bg-rose-950/20 hover:bg-rose-950/30 border border-rose-900/40 hover:border-rose-800 rounded-2xl flex flex-col justify-between h-36 group transition-all duration-200"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20 group-hover:scale-105 transition-transform duration-200">
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-white font-semibold group-hover:text-rose-300 transition-colors">Find Facilities</h5>
+                    <p className="text-slate-400 text-xs mt-1">Search nearby hospitals/clinics and book appointments.</p>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/records"
                   className="p-5 bg-emerald-950/20 hover:bg-emerald-950/30 border border-emerald-900/40 hover:border-emerald-800 rounded-2xl flex flex-col justify-between h-36 group transition-all duration-200"
                 >
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 group-hover:scale-105 transition-transform duration-200">
                     <FileText className="h-5 w-5" />
                   </div>
                   <div>
-                    <h5 className="text-white font-semibold group-hover:text-emerald-300 transition-colors">Consultations</h5>
-                    <p className="text-slate-400 text-xs mt-1">View previous predictions and consult doctor history.</p>
+                    <h5 className="text-white font-semibold group-hover:text-emerald-300 transition-colors">Health Records</h5>
+                    <p className="text-slate-400 text-xs mt-1">Store and review prescriptions, scans, and lab reports.</p>
                   </div>
+                </Link>
+
+                <Link
+                  to="/reminders"
+                  className="p-5 bg-amber-950/20 hover:bg-amber-950/30 border border-amber-900/40 hover:border-amber-800 rounded-2xl flex flex-col justify-between h-36 group transition-all duration-200"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20 group-hover:scale-105 transition-transform duration-200">
+                    <Bell className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-white font-semibold group-hover:text-amber-300 transition-colors">Medication Alarms</h5>
+                    <p className="text-slate-400 text-xs mt-1">Set medicine reminders and alarm logs.</p>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/health-library"
+                  className="p-5 bg-blue-950/20 hover:bg-blue-950/30 border border-blue-900/40 hover:border-blue-800 rounded-2xl flex flex-col justify-between h-36 group transition-all duration-200"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20 group-hover:scale-105 transition-transform duration-200">
+                    <BookOpen className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-white font-semibold group-hover:text-blue-300 transition-colors">Health Library</h5>
+                    <p className="text-slate-400 text-xs mt-1">Read certified medical guidance blogs and advice.</p>
+                  </div>
+                </Link>
+              </div>
+
+              <div className="flex gap-4">
+                <Link
+                  to="/appointments"
+                  className="flex-1 py-3 text-center bg-slate-800/40 hover:bg-slate-800/80 border border-slate-750 text-slate-350 hover:text-slate-200 text-sm font-semibold rounded-2xl transition-all"
+                >
+                  View Booked Appointments
+                </Link>
+                <Link
+                  to="/consultations"
+                  className="flex-1 py-3 text-center bg-slate-800/40 hover:bg-slate-800/80 border border-slate-750 text-slate-350 hover:text-slate-200 text-sm font-semibold rounded-2xl transition-all"
+                >
+                  View Consultations History
                 </Link>
               </div>
 
@@ -182,6 +307,76 @@ export const PatientDashboard: React.FC = () => {
                 <MessageSquare className="h-5 w-5 text-sky-400" />
                 <span>Give Platform Feedback</span>
               </button>
+            </div>
+
+            {/* Today's Medication Schedule Checklist */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center gap-2">
+                <Bell className="text-amber-400 h-5 w-5 animate-bounce" />
+                <h4 className="text-white font-bold text-lg">Today's Medication Checklist</h4>
+              </div>
+              <p className="text-slate-450 text-xs leading-relaxed">
+                Log daily compliance. Check off medication doses when you take them.
+              </p>
+
+              {remindersLoading ? (
+                <div className="py-6 text-center text-slate-500 flex justify-center items-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin text-sky-450" />
+                  <span className="text-xs">Loading medication list...</span>
+                </div>
+              ) : todayReminders.length === 0 ? (
+                <div className="py-6 border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 text-xs">
+                  No active medicine alarms set for today.
+                  <Link to="/reminders" className="text-sky-400 hover:underline block mt-1 font-semibold">
+                    Set medicine reminders now &rarr;
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {todayReminders.map((rem) => (
+                    <div key={rem.id} className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl space-y-2.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-white font-bold text-sm">{rem.medicine_name}</span>
+                        <span className="text-[10px] bg-slate-900 px-2 py-0.5 border border-slate-800 rounded text-slate-400 font-semibold">{rem.dosage}</span>
+                      </div>
+
+                      <div className="flex flex-col gap-2 pt-1 border-t border-slate-900/60">
+                        {rem.times.map((t: string, idx: number) => {
+                          const isTaken = rem.logs.some((l: any) => l.taken_time === t && l.status === 'taken');
+                          return (
+                            <div 
+                              key={idx}
+                              onClick={() => handleToggleLog(rem.id, t, isTaken)}
+                              className={`flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                                isTaken 
+                                  ? 'bg-emerald-950/20 border-emerald-900/30 text-emerald-400' 
+                                  : 'bg-slate-900/40 border-slate-850 text-slate-350 hover:border-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isTaken}
+                                  readOnly
+                                  className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500/30 h-4 w-4 bg-slate-950 shrink-0 cursor-pointer"
+                                />
+                                <span className={`text-xs font-semibold ${isTaken ? 'line-through opacity-60' : ''}`}>
+                                  Take {rem.dosage}
+                                </span>
+                              </div>
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${
+                                isTaken ? 'bg-emerald-950 border border-emerald-900/40' : 'bg-slate-950 border border-slate-800'
+                              }`}>
+                                ⏰ {t}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

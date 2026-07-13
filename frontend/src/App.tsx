@@ -13,6 +13,12 @@ import { CheckDisease } from './pages/CheckDisease';
 import { ConsultDoctor } from './pages/ConsultDoctor';
 import { ConsultationHistory } from './pages/ConsultationHistory';
 import { ConsultationRoom } from './pages/ConsultationRoom';
+import { FindProviders } from './pages/FindProviders';
+import { Appointments } from './pages/Appointments';
+import { Records } from './pages/Records';
+import { Reminders } from './pages/Reminders';
+import { HealthLibrary } from './pages/HealthLibrary';
+import { ArticleDetail } from './pages/ArticleDetail';
 import { RefreshCw } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -97,6 +103,44 @@ const AppContent: React.FC = () => {
             path="/consultation/:id" 
             element={
               user ? <ConsultationRoom /> : <Navigate to="/signin" replace />
+            } 
+          />
+
+          {/* New Healthcare Platform Features */}
+          <Route 
+            path="/find-providers" 
+            element={
+              user?.is_patient ? <FindProviders /> : <Navigate to="/signin" replace />
+            } 
+          />
+          <Route 
+            path="/appointments" 
+            element={
+              user?.is_patient ? <Appointments /> : <Navigate to="/signin" replace />
+            } 
+          />
+          <Route 
+            path="/records" 
+            element={
+              user?.is_patient ? <Records /> : <Navigate to="/signin" replace />
+            } 
+          />
+          <Route 
+            path="/reminders" 
+            element={
+              user?.is_patient ? <Reminders /> : <Navigate to="/signin" replace />
+            } 
+          />
+          <Route 
+            path="/health-library" 
+            element={
+              user ? <HealthLibrary /> : <Navigate to="/signin" replace />
+            } 
+          />
+          <Route 
+            path="/health-library/:id" 
+            element={
+              user ? <ArticleDetail /> : <Navigate to="/signin" replace />
             } 
           />
 

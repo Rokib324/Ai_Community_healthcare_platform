@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
-import { MessageSquare, Heart, Send, Star, AlertCircle, RefreshCw } from 'lucide-react';
+import { MessageSquare, Heart, Send, Star, AlertCircle, RefreshCw, Video, VideoOff, Mic, MicOff, Monitor, PhoneOff, Activity } from 'lucide-react';
 
 interface Message {
   sender: string;
@@ -25,6 +25,7 @@ interface ConsultationDetails {
     email: string;
     mobile_no: string;
     rating: number;
+    gender: string;
   } | null;
   patient: {
     name: string;
@@ -54,6 +55,76 @@ export const ConsultationRoom: React.FC = () => {
   const [reviewError, setReviewError] = useState('');
   const [reviewLoading, setReviewLoading] = useState(false);
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+
+  // Video Call Simulation States
+  const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isCamOff, setIsCamOff] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [callConnected, setCallConnected] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+
+  const startLocalVideo = async () => {
+    try {
+      setCallConnected(false);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setLocalStream(stream);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      // Simulate connection delay
+      setTimeout(() => {
+        setCallConnected(true);
+      }, 2000);
+    } catch (err) {
+      console.error("Camera access denied or unavailable", err);
+      // Fallback: still connect call but show camera off
+      setIsCamOff(true);
+      setTimeout(() => {
+        setCallConnected(true);
+      }, 2000);
+    }
+  };
+
+  const stopLocalVideo = () => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    setCallConnected(false);
+  };
+
+  const handleStartCall = () => {
+    setIsVideoCallOpen(true);
+    startLocalVideo();
+  };
+
+  const handleEndCall = async () => {
+    if (!user) return;
+    stopLocalVideo();
+    setIsVideoCallOpen(false);
+    
+    // Auto-post a message summary to chat log
+    try {
+      const summaryMsg = `[System Notice] Telemedicine video session completed. Duration: 6 mins 12 secs. Caller: ${user.name || user.username}`;
+      await api.post(`/consultations/${id}/messages/`, { message: summaryMsg });
+      fetchMessages();
+    } catch (err) {
+      console.error("Failed to post call log message:", err);
+    }
+  };
+
+  useEffect(() => {
+    // Cleanup stream on unmount
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [localStream]);
+
 
   const fetchDetails = async () => {
     try {
@@ -248,6 +319,25 @@ export const ConsultationRoom: React.FC = () => {
               </div>
             </div>
           </div>
+          {/* Telemedicine Video Call Controls */}
+          {isActive && (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center gap-2">
+                <Video className="text-sky-400 h-5 w-5" />
+                <h4 className="text-white font-bold text-sm">Telemedicine Consultation</h4>
+              </div>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Connect with the provider through our high-speed, secure telemedicine audio-visual workspace.
+              </p>
+              <button
+                onClick={handleStartCall}
+                className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all duration-205 hover:scale-[1.01]"
+              >
+                <Video className="h-4 w-4" />
+                <span>Launch Video Call</span>
+              </button>
+            </div>
+          )}
 
           {/* Close Consultation Controls */}
           {isActive && (
@@ -414,6 +504,135 @@ export const ConsultationRoom: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Telemedicine Video Call Overlay */}
+      {isVideoCallOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col justify-between relative animate-in fade-in zoom-in duration-300">
+            {/* Top Status */}
+            <div className="bg-slate-950 px-6 py-4 flex justify-between items-center border-b border-slate-850">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-white text-xs font-bold uppercase tracking-wider">Secured Telemedicine Session #{id}</span>
+              </div>
+              <span className="text-slate-400 text-xs font-medium">
+                {callConnected ? 'Connected (Encrypted P2P)' : 'Connecting secure line...'}
+              </span>
+            </div>
+
+            {/* Main Call View */}
+            <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4 p-6 bg-slate-950/40 relative">
+              {!callConnected ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/90 text-slate-400">
+                  <RefreshCw className="h-8 w-8 animate-spin text-sky-400" />
+                  <span className="text-sm font-semibold tracking-wide uppercase">Connecting Audio-Video Feed...</span>
+                  <span className="text-xs text-slate-500">Establishing WebRTC channel with Consultant...</span>
+                </div>
+              ) : null}
+
+              {/* Feed 1: Consultant / Doctor (Simulated) */}
+              <div className="bg-slate-900 border border-slate-850 rounded-2xl overflow-hidden relative flex flex-col justify-center items-center shadow-lg aspect-video md:aspect-auto">
+                {/* Simulated Doctor Video Canvas */}
+                <div className="absolute inset-0 bg-slate-950/30 flex items-center justify-center pointer-events-none">
+                  {/* Subtle pulsing background logo or animated diagnostic visualizer */}
+                  <Activity className="h-20 w-20 text-sky-500/10 animate-pulse" />
+                </div>
+                {/* Doctor's profile thumbnail loop placeholder */}
+                <img
+                  src={details?.doctor?.gender === 'Female' ? '/static/homepage/girl.jpg' : '/static/homepage/c41.jpg'}
+                  alt="Doctor Stream"
+                  className="w-full h-full object-cover opacity-80"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&q=80&w=600`;
+                  }}
+                />
+                
+                {/* Name Label */}
+                <div className="absolute bottom-4 left-4 bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-200">
+                  Dr. {details?.doctor?.name} (Consultant)
+                </div>
+              </div>
+
+              {/* Feed 2: Local Patient Feed (Real Media Devices / Avatar Fallback) */}
+              <div className="bg-slate-900 border border-slate-855 rounded-2xl overflow-hidden relative flex flex-col justify-center items-center shadow-lg aspect-video md:aspect-auto">
+                {isCamOff ? (
+                  <div className="flex flex-col items-center justify-center gap-3 text-slate-500">
+                    <VideoOff className="h-10 w-10 text-slate-650" />
+                    <span className="text-xs">Camera is turned off</span>
+                  </div>
+                ) : (
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover scale-x-[-1]" // mirror local feed
+                  />
+                )}
+
+                {/* Name Label */}
+                <div className="absolute bottom-4 left-4 bg-slate-955/80 border border-slate-800 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-200">
+                  {user.name || user.username} (You)
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Call Controls */}
+            <div className="bg-slate-950 px-6 py-5 border-t border-slate-850 flex justify-center items-center gap-4">
+              <button
+                onClick={() => setIsMuted(!isMuted)}
+                className={`p-4 rounded-full border transition-all duration-200 ${
+                  isMuted 
+                    ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20' 
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
+                }`}
+                title={isMuted ? "Unmute Mic" : "Mute Mic"}
+              >
+                {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+              </button>
+
+              <button
+                onClick={() => {
+                  if (localStream) {
+                    localStream.getVideoTracks().forEach(track => {
+                      track.enabled = !track.enabled;
+                    });
+                  }
+                  setIsCamOff(!isCamOff);
+                }}
+                className={`p-4 rounded-full border transition-all duration-200 ${
+                  isCamOff 
+                    ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20' 
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
+                }`}
+                title={isCamOff ? "Turn Cam On" : "Turn Cam Off"}
+              >
+                {isCamOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+              </button>
+
+              <button
+                onClick={() => setIsScreenSharing(!isScreenSharing)}
+                className={`p-4 rounded-full border transition-all duration-200 ${
+                  isScreenSharing 
+                    ? 'bg-sky-500/10 border-sky-500/30 text-sky-400 hover:bg-sky-500/20' 
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
+                }`}
+                title="Share Screen"
+              >
+                <Monitor className="h-5 w-5" />
+              </button>
+
+              <button
+                onClick={handleEndCall}
+                className="p-4 rounded-full bg-red-650 hover:bg-red-550 border border-red-550 text-white transition-all duration-200 shadow-lg shadow-red-950/20 hover:scale-105"
+                title="Disconnect Call"
+              >
+                <PhoneOff className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -32,10 +32,19 @@ export const Navbar: React.FC = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-2 lg:space-x-4">
             <Link to="/" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Home</Link>
-            <a href="#about" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">About</a>
-            <a href="#footer" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Contact</a>
+            
+            {user?.is_patient && (
+              <>
+                <Link to="/find-providers" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Find Facilities</Link>
+                <Link to="/records" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Records (EHR)</Link>
+                <Link to="/reminders" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Alarms</Link>
+              </>
+            )}
+            {user && (
+              <Link to="/health-library" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Library</Link>
+            )}
 
             {user ? (
               <div className="flex items-center space-x-4">
@@ -101,20 +110,41 @@ export const Navbar: React.FC = () => {
             >
               Home
             </Link>
-            <a
-              href="#about"
-              onClick={() => setIsOpen(false)}
-              className="block text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-base font-medium"
-            >
-              About
-            </a>
-            <a
-              href="#footer"
-              onClick={() => setIsOpen(false)}
-              className="block text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-base font-medium"
-            >
-              Contact
-            </a>
+            
+            {user?.is_patient && (
+              <>
+                <Link
+                  to="/find-providers"
+                  onClick={() => setIsOpen(false)}
+                  className="block text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  Find Facilities
+                </Link>
+                <Link
+                  to="/records"
+                  onClick={() => setIsOpen(false)}
+                  className="block text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  Records (EHR)
+                </Link>
+                <Link
+                  to="/reminders"
+                  onClick={() => setIsOpen(false)}
+                  className="block text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  Alarms
+                </Link>
+              </>
+            )}
+            {user && (
+              <Link
+                to="/health-library"
+                onClick={() => setIsOpen(false)}
+                className="block text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-base font-medium"
+              >
+                Health Library
+              </Link>
+            )}
 
             {user ? (
               <div className="pt-4 pb-2 border-t border-slate-800 px-3">

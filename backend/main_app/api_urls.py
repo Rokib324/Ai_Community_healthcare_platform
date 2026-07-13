@@ -29,4 +29,22 @@ urlpatterns = [
     # Profiles endpoints
     path('profiles/patient/<str:username>/', api.save_profile_patient, name='api_save_profile_patient'),
     path('profiles/doctor/<str:username>/', api.save_profile_doctor, name='api_save_profile_doctor'),
+
+    # Healthcare Providers & Appointments
+    path('providers/', api.list_providers, name='api_list_providers'),
+    path('appointments/', api.appointments_api, name='api_appointments'),
+    path('appointments/<int:pk>/cancel/', api.cancel_appointment_api, name='api_cancel_appointment'),
+
+    # Electronic Health Records (EHR)
+    path('ehr/', api.ehr_records_api, name='api_ehr_records'),
+    path('ehr/<int:pk>/', api.delete_ehr_record_api, name='api_delete_ehr_record'),
+
+    # Medicine Reminders
+    path('reminders/', api.reminders_api, name='api_reminders'),
+    path('reminders/<int:pk>/', api.reminder_detail_api, name='api_reminder_detail'),
+    path('reminders/<int:pk>/log/', api.log_reminder_taken_api, name='api_log_reminder_taken'),
+
+    # Health Library Articles
+    path('articles/', api.list_articles, name='api_articles'),
+    path('articles/<int:pk>/', api.article_detail, name='api_article_detail'),
 ]

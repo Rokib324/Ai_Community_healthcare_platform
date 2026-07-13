@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
-from .models import patient, doctor, diseaseinfo, consultation, rating_review
+from .models import patient, doctor, diseaseinfo, consultation, rating_review, HealthcareProvider, Appointment, EHRRecord, MedicineReminder, MedicineLog, HealthArticle
 from chats.models import Chat, Feedback
 import os
 import joblib as jb
@@ -632,3 +632,427 @@ def save_profile_doctor(request, username):
         State_Medical_Council=State_Medical_Council, specialization=specialization
     )
     return JsonResponse({"success": True, "message": "Profile updated successfully"})
+
+
+# --- Healthcare Providers & Appointments ---
+
+@require_http_methods(["GET"])
+def list_providers(request):
+    provider_type = request.GET.get('type')
+    query = request.GET.get('q')
+    
+    providers = HealthcareProvider.objects.all()
+    if provider_type:
+        providers = providers.filter(provider_type=provider_type)
+    if query:
+        providers = providers.filter(name__icontains=query) | providers.filter(address__icontains=query)
+        
+    data = []
+    for p in providers:
+        data.append({
+            "id": p.id,
+            "name": p.name,
+            "provider_type": p.provider_type,
+            "address": p.address,
+            "latitude": float(p.latitude) if p.latitude else None,
+            "longitude": float(p.longitude) if p.longitude else None,
+            "mobile_no": p.mobile_no,
+            "services": p.services,
+            "rating": float(p.rating)
+        })
+    return JsonResponse({"providers": data})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def appointments_api(request):
+    if request.method == "GET":
+        user = request.user
+        if hasattr(user, 'patient'):
+            appointments = Appointment.objects.filter(patient=user.patient).order_by('-appointment_date', '-created_at')
+        elif hasattr(user, 'doctor'):
+            appointments = Appointment.objects.filter(doctor=user.doctor).order_by('-appointment_date', '-created_at')
+        elif user.is_superuser:
+            appointments = Appointment.objects.all().order_by('-appointment_date', '-created_at')
+        else:
+            return JsonResponse({"appointments": []})
+
+        data = []
+        for app in appointments:
+            data.append({
+                "id": app.id,
+                "patient_name": app.patient.name,
+                "provider_name": app.provider.name,
+                "provider_address": app.provider.address,
+                "provider_type": app.provider.provider_type,
+                "doctor_name": app.doctor.name if app.doctor else None,
+                "appointment_date": app.appointment_date.strftime('%Y-%m-%d'),
+                "time_slot": app.time_slot,
+                "status": app.status,
+                "reasons": app.reasons
+            })
+        return JsonResponse({"appointments": data})
+
+    elif request.method == "POST":
+        if not hasattr(request.user, 'patient'):
+            return JsonResponse({"success": False, "error": "Only patients can book appointments"}, status=403)
+            
+        try:
+            body = json.loads(request.body)
+            provider_id = body.get('provider_id')
+            doctor_id = body.get('doctor_id')
+            date_str = body.get('appointment_date')
+            time_slot = body.get('time_slot')
+            reasons = body.get('reasons', '')
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+        if not provider_id or not date_str or not time_slot:
+            return JsonResponse({"success": False, "error": "Missing required fields"}, status=400)
+
+        try:
+            provider = HealthcareProvider.objects.get(id=provider_id)
+            app_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except HealthcareProvider.DoesNotExist:
+            return JsonResponse({"success": False, "error": "Healthcare provider not found"}, status=404)
+        except ValueError:
+            return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+        doc = None
+        if doctor_id:
+            try:
+                doc = doctor.objects.get(user_id=doctor_id)
+            except doctor.DoesNotExist:
+                pass
+
+        appointment = Appointment.objects.create(
+            patient=request.user.patient,
+            provider=provider,
+            doctor=doc,
+            appointment_date=app_date,
+            time_slot=time_slot,
+            reasons=reasons,
+            status='scheduled'
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": "Appointment booked successfully",
+            "appointment_id": appointment.id
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+def cancel_appointment_api(request, pk):
+    try:
+        app = Appointment.objects.get(id=pk)
+    except Appointment.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Appointment not found"}, status=404)
+
+    # Authorization check: only the patient themselves or an admin can cancel
+    if not request.user.is_superuser and (not hasattr(request.user, 'patient') or app.patient != request.user.patient):
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    app.status = 'cancelled'
+    app.save()
+    return JsonResponse({"success": True, "message": "Appointment cancelled successfully"})
+
+
+# --- Electronic Health Records (EHR) ---
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def ehr_records_api(request):
+    if request.method == "GET":
+        # Patients view their own, doctors can view a specific patient's if specified in query
+        target_patient = None
+        patient_username = request.GET.get('patient_username')
+        
+        if patient_username:
+            if not hasattr(request.user, 'doctor') and not request.user.is_superuser:
+                return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+            try:
+                target_patient = patient.objects.get(user__username=patient_username)
+            except patient.DoesNotExist:
+                return JsonResponse({"success": False, "error": "Patient not found"}, status=404)
+        else:
+            if hasattr(request.user, 'patient'):
+                target_patient = request.user.patient
+            else:
+                return JsonResponse({"records": []})
+
+        records = EHRRecord.objects.filter(patient=target_patient).order_by('-created_at', '-id')
+        data = []
+        for rec in records:
+            data.append({
+                "id": rec.id,
+                "title": rec.title,
+                "record_type": rec.record_type,
+                "description": rec.description,
+                "attachment_name": rec.attachment_name,
+                "attachment_data": rec.attachment_data,
+                "created_at": rec.created_at.strftime('%Y-%m-%d'),
+                "doctor_name": rec.doctor.name if rec.doctor else None
+            })
+        return JsonResponse({"records": data})
+
+    elif request.method == "POST":
+        try:
+            body = json.loads(request.body)
+            title = body.get('title')
+            record_type = body.get('record_type')
+            description = body.get('description', '')
+            attachment_name = body.get('attachment_name', '')
+            attachment_data = body.get('attachment_data', '')
+            patient_username = body.get('patient_username')  # optional, if uploaded by a doctor
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+        if not title or not record_type:
+            return JsonResponse({"success": False, "error": "Title and type are required"}, status=400)
+
+        target_patient = None
+        doc = None
+        if hasattr(request.user, 'patient'):
+            target_patient = request.user.patient
+        elif hasattr(request.user, 'doctor'):
+            doc = request.user.doctor
+            if not patient_username:
+                return JsonResponse({"success": False, "error": "Patient username is required for doctor uploads"}, status=400)
+            try:
+                target_patient = patient.objects.get(user__username=patient_username)
+            except patient.DoesNotExist:
+                return JsonResponse({"success": False, "error": "Patient not found"}, status=404)
+        else:
+            return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+        record = EHRRecord.objects.create(
+            patient=target_patient,
+            doctor=doc,
+            title=title,
+            record_type=record_type,
+            description=description,
+            attachment_name=attachment_name,
+            attachment_data=attachment_data
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": "Health record stored successfully",
+            "record_id": record.id
+        })
+
+
+@login_required
+@require_http_methods(["DELETE"])
+def delete_ehr_record_api(request, pk):
+    try:
+        record = EHRRecord.objects.get(id=pk)
+    except EHRRecord.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Record not found"}, status=404)
+
+    # Check ownership
+    if not request.user.is_superuser and (not hasattr(request.user, 'patient') or record.patient != request.user.patient):
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    record.delete()
+    return JsonResponse({"success": True, "message": "Record deleted successfully"})
+
+
+# --- Medicine Reminders & Logs ---
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def reminders_api(request):
+    if not hasattr(request.user, 'patient'):
+        return JsonResponse({"reminders": []})
+
+    if request.method == "GET":
+        reminders = MedicineReminder.objects.filter(patient=request.user.patient).order_by('-created_at')
+        target_date_str = request.GET.get('date') # Format: YYYY-MM-DD
+        
+        target_date = None
+        if target_date_str:
+            try:
+                target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        data = []
+        for rem in reminders:
+            logs = []
+            if target_date:
+                # Find if logged for this date
+                day_logs = MedicineLog.objects.filter(reminder=rem, taken_date=target_date)
+                for l in day_logs:
+                    logs.append({
+                        "taken_time": l.taken_time,
+                        "status": l.status
+                    })
+            data.append({
+                "id": rem.id,
+                "medicine_name": rem.medicine_name,
+                "dosage": rem.dosage,
+                "frequency": rem.frequency,
+                "times": rem.times,
+                "start_date": rem.start_date.strftime('%Y-%m-%d'),
+                "end_date": rem.end_date.strftime('%Y-%m-%d'),
+                "active": rem.active,
+                "logs": logs
+            })
+        return JsonResponse({"reminders": data})
+
+    elif request.method == "POST":
+        try:
+            body = json.loads(request.body)
+            medicine_name = body.get('medicine_name')
+            dosage = body.get('dosage')
+            frequency = body.get('frequency', 'Daily')
+            times = body.get('times', [])
+            start_date_str = body.get('start_date')
+            end_date_str = body.get('end_date')
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+        if not medicine_name or not dosage or not start_date_str or not end_date_str:
+            return JsonResponse({"success": False, "error": "Missing required fields"}, status=400)
+
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+        reminder = MedicineReminder.objects.create(
+            patient=request.user.patient,
+            medicine_name=medicine_name,
+            dosage=dosage,
+            frequency=frequency,
+            times=times,
+            start_date=start_date,
+            end_date=end_date,
+            active=True
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": "Medicine reminder added successfully",
+            "reminder_id": reminder.id
+        })
+
+
+@login_required
+@require_http_methods(["DELETE", "PATCH"])
+def reminder_detail_api(request, pk):
+    try:
+        rem = MedicineReminder.objects.get(id=pk)
+    except MedicineReminder.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Reminder not found"}, status=404)
+
+    if not request.user.is_superuser and (not hasattr(request.user, 'patient') or rem.patient != request.user.patient):
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    if request.method == "DELETE":
+        rem.delete()
+        return JsonResponse({"success": True, "message": "Reminder deleted successfully"})
+
+    elif request.method == "PATCH":
+        try:
+            body = json.loads(request.body)
+            if 'active' in body:
+                rem.active = bool(body['active'])
+                rem.save()
+            return JsonResponse({"success": True, "active": rem.active})
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def log_reminder_taken_api(request, pk):
+    try:
+        rem = MedicineReminder.objects.get(id=pk)
+    except MedicineReminder.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Reminder not found"}, status=404)
+
+    if not hasattr(request.user, 'patient') or rem.patient != request.user.patient:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        body = json.loads(request.body)
+        date_str = body.get('date')
+        time_slot = body.get('time_slot')
+        status = body.get('status', 'taken')  # 'taken' or 'skipped'
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    if not date_str or not time_slot:
+        return JsonResponse({"success": False, "error": "Date and time slot are required"}, status=400)
+
+    try:
+        log_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+    # Get or create log
+    log, created = MedicineLog.objects.get_or_create(
+        reminder=rem,
+        taken_date=log_date,
+        taken_time=time_slot,
+        defaults={"status": status}
+    )
+    if not created:
+        log.status = status
+        log.save()
+
+    return JsonResponse({"success": True, "status": log.status})
+
+
+# --- Centralized Health Library ---
+
+@require_http_methods(["GET"])
+def list_articles(request):
+    category = request.GET.get('category')
+    query = request.GET.get('q')
+
+    articles = HealthArticle.objects.all().order_by('-created_at')
+    if category:
+        articles = articles.filter(category=category)
+    if query:
+        articles = articles.filter(title__icontains=query) | articles.filter(summary__icontains=query) | articles.filter(content__icontains=query)
+
+    data = []
+    for art in articles:
+        data.append({
+            "id": art.id,
+            "title": art.title,
+            "category": art.category,
+            "summary": art.summary,
+            "author": art.author,
+            "read_time": art.read_time,
+            "created_at": art.created_at.strftime('%Y-%m-%d')
+        })
+    return JsonResponse({"articles": data})
+
+
+@require_http_methods(["GET"])
+def article_detail(request, pk):
+    try:
+        art = HealthArticle.objects.get(id=pk)
+    except HealthArticle.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Article not found"}, status=404)
+
+    return JsonResponse({
+        "article": {
+            "id": art.id,
+            "title": art.title,
+            "category": art.category,
+            "summary": art.summary,
+            "content": art.content,
+            "author": art.author,
+            "read_time": art.read_time,
+            "created_at": art.created_at.strftime('%Y-%m-%d')
+        }
+    })
+
