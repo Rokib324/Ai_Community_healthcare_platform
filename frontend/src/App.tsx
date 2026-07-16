@@ -19,6 +19,7 @@ import { Records } from './pages/Records';
 import { Reminders } from './pages/Reminders';
 import { HealthLibrary } from './pages/HealthLibrary';
 import { ArticleDetail } from './pages/ArticleDetail';
+import { ReportAnalyzer } from './pages/ReportAnalyzer';
 import { RefreshCw } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -107,6 +108,12 @@ const AppContent: React.FC = () => {
           />
 
           {/* New Healthcare Platform Features */}
+          <Route 
+            path="/analyze-report" 
+            element={
+              user?.is_patient ? <ReportAnalyzer /> : <Navigate to="/signin" replace />
+            } 
+          />
           <Route 
             path="/find-providers" 
             element={

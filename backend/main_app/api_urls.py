@@ -1,7 +1,12 @@
+# pyrefly: ignore [missing-import]
 from django.urls import path
 from . import api
+from report_analyzer import views as report_views
 
 urlpatterns = [
+    # Report Analyzer
+    path('report-analyzer/analyze/', report_views.analyze_report_api, name='api_analyze_report'),
+
     # Auth endpoints
     path('auth/me/', api.me, name='api_me'),
     path('auth/login/', api.login_api, name='api_login'),

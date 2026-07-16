@@ -38,6 +38,7 @@ export const Navbar: React.FC = () => {
             {user?.is_patient && (
               <>
                 <Link to="/find-providers" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Find Facilities</Link>
+                <Link to="/analyze-report" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Report Analyzer</Link>
                 <Link to="/records" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Records (EHR)</Link>
                 <Link to="/reminders" className="text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors">Alarms</Link>
               </>
@@ -119,6 +120,13 @@ export const Navbar: React.FC = () => {
                   className="block text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-base font-medium"
                 >
                   Find Facilities
+                </Link>
+                <Link
+                  to="/analyze-report"
+                  onClick={() => setIsOpen(false)}
+                  className="block text-slate-300 hover:text-sky-400 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  Report Analyzer
                 </Link>
                 <Link
                   to="/records"

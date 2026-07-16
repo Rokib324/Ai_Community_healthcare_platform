@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
-import { User, Clipboard, MessageSquare, AlertCircle, Edit3, X, Calendar, MapPin, Phone, Mail, FileText, CheckCircle2, RefreshCw, Activity, Bell, BookOpen } from 'lucide-react';
+import { User, Clipboard, MessageSquare, AlertCircle, Edit3, X, Calendar, MapPin, Phone, Mail, FileText, CheckCircle2, RefreshCw, Activity, Bell, BookOpen, Sparkles } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
   const { user, refresh } = useAuth();
@@ -205,7 +205,7 @@ export const PatientDashboard: React.FC = () => {
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
               <h4 className="text-white font-bold text-lg">Quick Actions</h4>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <Link
                   to="/check-disease"
                   className="p-5 bg-sky-950/20 hover:bg-sky-950/30 border border-sky-900/40 hover:border-sky-800 rounded-2xl flex flex-col justify-between h-36 group transition-all duration-200"
@@ -216,6 +216,19 @@ export const PatientDashboard: React.FC = () => {
                   <div>
                     <h5 className="text-white font-semibold group-hover:text-sky-300 transition-colors">Check Symptoms</h5>
                     <p className="text-slate-400 text-xs mt-1">Predict possible disease conditions using our ML engine.</p>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/analyze-report"
+                  className="p-5 bg-teal-950/20 hover:bg-teal-950/30 border border-teal-900/40 hover:border-teal-800 rounded-2xl flex flex-col justify-between h-36 group transition-all duration-200"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center border border-teal-500/20 group-hover:scale-105 transition-transform duration-200">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-white font-semibold group-hover:text-teal-300 transition-colors">AI Report Analyzer</h5>
+                    <p className="text-slate-400 text-xs mt-1">Get custom agent reviews on clinical reports and medical history.</p>
                   </div>
                 </Link>
 
