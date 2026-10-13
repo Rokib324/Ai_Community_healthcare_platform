@@ -3,7 +3,7 @@ from datetime import datetime, date
 from django.http import JsonResponse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect, csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from .models import patient, doctor, diseaseinfo, consultation, rating_review, HealthcareProvider, Appointment, EHRRecord, MedicineReminder, MedicineLog, HealthArticle
@@ -87,6 +87,7 @@ def me(request):
         return JsonResponse(user_data)
     return JsonResponse({"authenticated": False})
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def login_api(request):
     try:
@@ -114,6 +115,7 @@ def login_api(request):
         })
     return JsonResponse({"success": False, "error": "Invalid username or password"}, status=400)
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def logout_api(request):
     logout(request)
@@ -124,6 +126,24 @@ def logout_api(request):
     request.session.pop('adminid', None)
     return JsonResponse({"success": True})
 
+@require_http_methods(["GET"])
+def homepage_stats(request):
+    """Public endpoint for homepage statistics — no login required."""
+    from django.contrib.auth.models import User as AuthUser
+    total_doctors = doctor.objects.count()
+    total_patients = patient.objects.count()
+    total_consultations = consultation.objects.count()
+    total_articles = HealthArticle.objects.count()
+    total_providers = HealthcareProvider.objects.count()
+    return JsonResponse({
+        "total_doctors": total_doctors,
+        "total_patients": total_patients,
+        "total_consultations": total_consultations,
+        "total_articles": total_articles,
+        "total_providers": total_providers,
+    })
+
+@csrf_exempt
 @require_http_methods(["POST"])
 def signup_patient_api(request):
     try:
@@ -169,6 +189,7 @@ def signup_patient_api(request):
 
     return JsonResponse({"success": True, "message": "Patient created successfully"})
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def signup_doctor_api(request):
     try:

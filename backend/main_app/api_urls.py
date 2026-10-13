@@ -14,6 +14,9 @@ urlpatterns = [
     path('auth/signup/patient/', api.signup_patient_api, name='api_signup_patient'),
     path('auth/signup/doctor/', api.signup_doctor_api, name='api_signup_doctor'),
     
+    # Public homepage stats (no login required)
+    path('stats/', api.homepage_stats, name='api_homepage_stats'),
+    
     # Disease checker endpoints
     path('symptoms/', api.get_symptoms, name='api_symptoms'),
     path('predict/', api.predict_disease, name='api_predict'),
